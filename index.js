@@ -50,7 +50,11 @@ async function run() {
     })
 
 
-    
+    // get all user data from database
+    app.get('/users', async(req, res) => {
+      const users = await userCollection.find().toArray();
+      res.send(users);
+    })
 
 
 
