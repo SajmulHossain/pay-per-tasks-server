@@ -41,7 +41,7 @@ async function run() {
       const isExist = await userCollection.findOne({email});
 
       if(isExist) {
-        res.send(isExist);
+       return res.send(isExist);
       }
 
       const result = await userCollection.insertOne(user);
