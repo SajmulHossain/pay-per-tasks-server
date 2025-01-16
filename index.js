@@ -1,22 +1,22 @@
-const express = require('express');
-const cors = require('cors');
+const express = require("express");
+const cors = require("cors");
 const { MongoClient, ServerApiVersion } = require("mongodb");
-require('dotenv').config();
+require("dotenv").config();
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 
 const port = process.env.port || 3000;
 const app = express();
 app.use(
   cors({
     origin: ["http://localhost:5173"],
-    credentials: true
+    credentials: true,
   })
 );
-app.use(express.json())
+app.use(express.json());
+app.use(cookieParser());
 
-
-
-const uri =
-  `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.saftd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.saftd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
@@ -29,34 +29,47 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    const db= client.db('PayPerTasksDB');
-    const userCollection = db.collection('users');
+    const db = client.db("PayPerTasksDB");
+    const userCollection = db.collection("users");
 
+    // create token
+    app.post("/jwt", async (req, res) => {
+      const email = req.body;
+      const token = jwt.sign(email, process.env.SECRET_KEY, {
+        expiresIn: "5h",
+      });
+
+      res
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+        })
+        .send({ success: true });
+    });
+
+    
 
     // save user data to database
-    app.post('/user/:email', async(req, res) => {
+    app.post("/user/:email", async (req, res) => {
       const user = req.body;
       const email = req.params.email;
 
-      const isExist = await userCollection.findOne({email});
+      const isExist = await userCollection.findOne({ email });
 
-      if(isExist) {
-       return res.send(isExist);
+      if (isExist) {
+        return res.send(isExist);
       }
 
       const result = await userCollection.insertOne(user);
       res.send(result);
-      
-    })
-
+    });
 
     // get all user data from database
-    app.get('/users', async(req, res) => {
+    app.get("/users", async (req, res) => {
       const users = await userCollection.find().toArray();
       res.send(users);
-    })
-
-
+    });
 
     await client.connect();
     await client.db("admin").command({ ping: 1 });
@@ -70,13 +83,10 @@ async function run() {
 }
 run().catch(console.dir);
 
-
-
-
-app.get('/', (req, res) => {
-  res.send('Server is runnig');
-})
+app.get("/", (req, res) => {
+  res.send("Server is runnig");
+});
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
-})
+});
