@@ -48,6 +48,15 @@ async function run() {
         .send({ success: true });
     });
 
+    // clear token
+    app.get('/logout', async(req, res) => {
+      res.clearCookie("token", {
+        maxAge: 0,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      }).send({success: true});
+    })
+
     
 
     // save user data to database
