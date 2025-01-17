@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const jwt = require("jsonwebtoken");
 const cookieParser = require("cookie-parser");
@@ -115,13 +115,13 @@ async function run() {
 
     // get admin home states
     app.get("/states", verifyToken, verifyAdmin, async (req, res) => {
-      const worker = await userCollection.find({ role: "worker" }).count();
-      const buyer = await userCollection.find({ role: "buyer" }).count();
+      const workers = await userCollection.find({ role: "worker" }).count();
+      const buyers = await userCollection.find({ role: "buyer" }).count();
       const users = await userCollection.find().toArray();
-      const coin = users.reduce((prev, update) => {
+      const coins = users.reduce((prev, update) => {
         return prev + update.coin;
       }, 0);
-      res.send({ worker, buyer, coin });
+      res.send({ workers, buyers, coins });
     });
 
     // save user data to database
@@ -140,9 +140,17 @@ async function run() {
     });
 
     // get all user data from database
-    app.get("/users", async (req, res) => {
+    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
       const users = await userCollection.find().toArray();
       res.send(users);
+    });
+
+    // user delete api
+    app.delete("/user/:id", verifyToken, verifyAdmin, async (req, res) => {
+      const { id } = req.params;
+      const query = { _id: new ObjectId(id) };
+      const result = await userCollection.deleteOne(query);
+      res.send(result);
     });
 
     await client.connect();
