@@ -81,14 +81,18 @@ async function run() {
     });
 
     // verify admin
-    const verifyAdmin =async (req, res, next) => {
+    const verifyAdmin = async (req, res, next) => {
       const email = req?.user?.email;
-      const query = {email: email};
+      const query = { email: email };
       const user = await userCollection.findOne(query);
-      if(!result || result?.role !== 'admin') {
-        return res.status(403).send({message: 'Forbidden Access! Only admin permitted.'})
+      if (!user || user?.role !== "admin") {
+        return res
+          .status(403)
+          .send({ message: "Forbidden Access! Only admin permitted." });
       }
-    }
+
+      next();
+    };
 
     // get role
     app.get("/user/role/:email", async (req, res) => {
@@ -109,7 +113,16 @@ async function run() {
       res.send({ coin: user.coin });
     });
 
-
+    // get admin home states
+    app.get("/states", verifyToken, verifyAdmin, async (req, res) => {
+      const worker = await userCollection.find({ role: "worker" }).count();
+      const buyer = await userCollection.find({ role: "buyer" }).count();
+      const users = await userCollection.find().toArray();
+      const coin = users.reduce((prev, update) => {
+        return prev + update.coin;
+      }, 0);
+      res.send({ worker, buyer, coin });
+    });
 
     // save user data to database
     app.post("/user/:email", async (req, res) => {
