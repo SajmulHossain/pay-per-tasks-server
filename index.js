@@ -9,7 +9,11 @@ const port = process.env.port || 3000;
 const app = express();
 app.use(
   cors({
-    origin: ["http://localhost:5173"],
+    origin: [
+      "http://localhost:5173",
+      " http://192.168.0.182:5173",
+      "https://pay-per-tasks.web.app",
+    ],
     credentials: true,
   })
 );
@@ -49,15 +53,23 @@ async function run() {
     });
 
     // clear token
-    app.get('/logout', async(req, res) => {
-      res.clearCookie("token", {
-        maxAge: 0,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-      }).send({success: true});
-    })
+    app.get("/logout", async (req, res) => {
+      res
+        .clearCookie("token", {
+          maxAge: 0,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+        })
+        .send({ success: true });
+    });
 
-    
+    // get role
+    app.get("/user/role/:email", async (req, res) => {
+      const { email } = req.params;
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      res.send({ role: user?.role });
+    });
 
     // save user data to database
     app.post("/user/:email", async (req, res) => {
