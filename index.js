@@ -80,6 +80,16 @@ async function run() {
         .send({ success: true });
     });
 
+    // verify admin
+    const verifyAdmin =async (req, res, next) => {
+      const email = req?.user?.email;
+      const query = {email: email};
+      const user = await userCollection.findOne(query);
+      if(!result || result?.role !== 'admin') {
+        return res.status(403).send({message: 'Forbidden Access! Only admin permitted.'})
+      }
+    }
+
     // get role
     app.get("/user/role/:email", async (req, res) => {
       const { email } = req.params;
@@ -99,7 +109,7 @@ async function run() {
       res.send({ coin: user.coin });
     });
 
-    
+
 
     // save user data to database
     app.post("/user/:email", async (req, res) => {
