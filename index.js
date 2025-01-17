@@ -20,6 +20,25 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
+const verifyToken = (req, res, next) {
+  const token = req.cookies?.token;
+
+  if(!token) {
+    return res.status(401).send({message: 'Unauthorized access'})
+  }
+
+  jwt.verify(token, process.env.SECRET_KEY, (err, decoded) => {
+    if(err) {
+      return res.status(401).send({message: 'Unauthorized access'})
+    }
+
+    req.user = decoded;
+    next();
+  })
+}
+
+
+
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.saftd.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -70,6 +89,14 @@ async function run() {
       const user = await userCollection.findOne(query);
       res.send({ role: user?.role });
     });
+
+    // get coin
+    app.get('/coin/:email', async(req, res) => {
+      const { email }  = req.params;
+      const query = { email: email};
+      const user = await userCollection.findOne(query);
+      res.send({coin: user.coin});
+    })
 
     // save user data to database
     app.post("/user/:email", async (req, res) => {
