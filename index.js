@@ -94,6 +94,21 @@ async function run() {
       next();
     };
 
+
+    // verifyBuyer
+    const verifyBuyer = async (req, res, next) => {
+      const email = req?.user?.email;
+      const query = { email: email };
+      const user = await userCollection.findOne(query);
+      if (!user || user?.role !== "buyer") {
+        return res
+          .status(403)
+          .send({ message: "Forbidden Access! Only buyer permitted." });
+      }
+
+      next();
+    };
+
     // get role
     app.get("/user/role/:email", async (req, res) => {
       const { email } = req.params;
