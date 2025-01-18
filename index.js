@@ -141,8 +141,10 @@ async function run() {
     });
 
     // get all user data from database
-    app.get("/users", verifyToken, verifyAdmin, async (req, res) => {
-      const users = await userCollection.find().toArray();
+    app.get("/users/:email", verifyToken, verifyAdmin, async (req, res) => {
+      const { email } = req.params;
+      const query = { email: { $ne: email } };
+      const users = await userCollection.find(query).toArray();
       res.send(users);
     });
 
@@ -157,12 +159,11 @@ async function run() {
     // user role update api
     app.patch("/user/:email", async (req, res) => {
       const { email } = req.params;
-      const {newRole} = req.body;
+      const { newRole } = req.body;
       const query = { email: email };
       const updateDoc = {
         $set: { role: newRole },
       };
-
 
       const result = await userCollection.updateOne(query, updateDoc);
       res.send(result);
