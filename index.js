@@ -110,7 +110,7 @@ async function run() {
       }
       const query = { email: email };
       const user = await userCollection.findOne(query);
-      res.send({ coin: user.coin });
+      res.send({ coin: user?.coin });
     });
 
     // get admin home states
@@ -128,6 +128,7 @@ async function run() {
     app.post("/user/:email", async (req, res) => {
       const user = req.body;
       const email = req.params.email;
+      console.log(user);
 
       const isExist = await userCollection.findOne({ email });
 
@@ -150,6 +151,20 @@ async function run() {
       const { id } = req.params;
       const query = { _id: new ObjectId(id) };
       const result = await userCollection.deleteOne(query);
+      res.send(result);
+    });
+
+    // user role update api
+    app.patch("/user/:email", async (req, res) => {
+      const { email } = req.params;
+      const {newRole} = req.body;
+      const query = { email: email };
+      const updateDoc = {
+        $set: { role: newRole },
+      };
+
+
+      const result = await userCollection.updateOne(query, updateDoc);
       res.send(result);
     });
 
