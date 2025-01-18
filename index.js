@@ -148,6 +148,39 @@ async function run() {
       }
     );
 
+    // get all tasks
+    app.get('/tasks', verifyToken, verifyAdmin, async (req, res) => {
+      const result = await taskCollection.find().toArray();
+      res.send(result);
+    })
+
+    // get custom task
+    app.get('/task/:id', verifyToken, verifyBuyer, async(req, res) => {
+      const { id } = req.params;
+      const { email } = req.query;
+
+      if(req.user?.email !== email) {
+        return res.status(403).send({message: 'Forbidden access'})
+      } 
+
+      const query = { _id: new ObjectId(id) };
+      const result = await taskCollection.findOne(query);
+      res.send(result);
+    })
+
+    // update task 
+    app.put('/task/:id', verifyToken, verifyBuyer, async(req, res) => {
+      const {id} = req.params;
+      const query = { _id: new ObjectId(id) };
+      const { _id, ...data} = req.body;
+      const updateDoc = {
+        $set: data
+      }
+
+      const result = await taskCollection.updateOne(query, updateDoc);
+      res.send(result);
+    })
+
     // get role
     app.get("/user/role/:email", async (req, res) => {
       const { email } = req.params;
