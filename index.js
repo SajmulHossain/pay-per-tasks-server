@@ -52,7 +52,7 @@ async function run() {
   try {
     const db = client.db("PayPerTasksDB");
     const userCollection = db.collection("users");
-    const taskCollection = db.collection('tasks');
+    const taskCollection = db.collection("tasks");
 
     // create token
     app.post("/jwt", async (req, res) => {
@@ -95,7 +95,6 @@ async function run() {
       next();
     };
 
-
     // verifyBuyer
     const verifyBuyer = async (req, res, next) => {
       const email = req?.user?.email;
@@ -110,24 +109,44 @@ async function run() {
       next();
     };
 
-
     // post tasks api
-    app.post('/tasks',verifyToken, verifyBuyer, async(req, res) => {
+    app.post("/tasks", verifyToken, verifyBuyer, async (req, res) => {
       const task = req.body;
-      const result = await taskCollection.insertOne(task);
+      const result = await taskCollection.insertOne({
+        ...task,
+        status: "pending",
+      });
       res.send(result);
-    })
+    });
 
     // task for a buyer
-    app.get('/tasks/:email', async(req, res) => {
-      const {email} = req.params;
-      const query = {'buyer.email': email};
-      const sort = {date: -1};
+    app.get("/tasks/:email", verifyToken, verifyBuyer, async (req, res) => {
+      const { email } = req.params;
+      const query = { "buyer.email": email };
+      const sort = { date: -1 };
       const result = await taskCollection.find(query).sort(sort).toArray();
       res.send(result);
-    })
+    });
 
-    
+    app.get(
+      "/states/buyer/:email",
+      verifyToken,
+      verifyBuyer,
+      async (req, res) => {
+        const { email } = req.params;
+        const query = { "buyer.email": email };
+        const tasks = await taskCollection.find(query).count();
+        const pending = await taskCollection
+          .find({ ...query, status: "pending" })
+          .count();
+        const allTasks = await taskCollection.find().toArray();
+        const workers = allTasks.reduce((prev, next) => {
+          return prev + next.workers;
+        }, 0);
+
+        res.send({ tasks, pending, workers });
+      }
+    );
 
     // get role
     app.get("/user/role/:email", async (req, res) => {
