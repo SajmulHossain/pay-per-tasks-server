@@ -52,6 +52,7 @@ async function run() {
   try {
     const db = client.db("PayPerTasksDB");
     const userCollection = db.collection("users");
+    const taskCollection = db.collection('tasks');
 
     // create token
     app.post("/jwt", async (req, res) => {
@@ -108,6 +109,14 @@ async function run() {
 
       next();
     };
+
+
+    // post tasks api
+    app.post('/tasks',verifyToken, verifyBuyer, async(req, res) => {
+      const task = req.body;
+      const result = await taskCollection.insertOne(task);
+      res.send(result);
+    })
 
     // get role
     app.get("/user/role/:email", async (req, res) => {
