@@ -118,6 +118,17 @@ async function run() {
       res.send(result);
     })
 
+    // task for a buyer
+    app.get('/tasks/:email', async(req, res) => {
+      const {email} = req.params;
+      const query = {'buyer.email': email};
+      const sort = {date: -1};
+      const result = await taskCollection.find(query).sort(sort).toArray();
+      res.send(result);
+    })
+
+    
+
     // get role
     app.get("/user/role/:email", async (req, res) => {
       const { email } = req.params;
