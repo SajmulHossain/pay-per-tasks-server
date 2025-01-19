@@ -54,7 +54,8 @@ async function run() {
     const db = client.db("PayPerTasksDB");
     const userCollection = db.collection("users");
     const taskCollection = db.collection("tasks");
-    const paymentCollection = db.collection('payments');
+    const paymentCollection = db.collection("payments");
+    const submissionCollection = db.collection("submission");
 
     // create token
     app.post("/jwt", async (req, res) => {
@@ -116,15 +117,21 @@ async function run() {
       const task = req.body;
       const email = req?.user?.email;
       const totalAmount = task.workers * task.amount;
-      const result = await taskCollection.insertOne({
-        ...task,
-        status: "pending",
-      });
-      await userCollection.updateOne({email}, {$inc: {'coin' : -totalAmount}})
+      const result = await taskCollection.insertOne({ task });
+      await userCollection.updateOne(
+        { email },
+        { $inc: { coin: -totalAmount } }
+      );
       res.send(result);
     });
 
-    
+    // delete task api
+    app.delete("/task/:id", verifyToken, async (req, res) => {
+      const { id } = req.params;
+      const query = { _id: new ObjectId(id) };
+      const task = await taskCollection.findOne(query);
+      // const
+    });
 
     // task for a buyer
     app.get("/tasks/:email", verifyToken, verifyBuyer, async (req, res) => {
@@ -135,6 +142,9 @@ async function run() {
       res.send(result);
     });
 
+
+   
+
     app.get(
       "/states/buyer/:email",
       verifyToken,
@@ -143,8 +153,10 @@ async function run() {
         const { email } = req.params;
         const query = { "buyer.email": email };
         const tasks = await taskCollection.countDocuments(query);
-        const pending = await taskCollection
-          .countDocuments({ ...query, status: "pending" });
+        const pending = await submissionCollection.countDocuments({
+          buyer_email: email,
+          status: "pending",
+        });
         const allTasks = await taskCollection.find().toArray();
         const workers = allTasks.reduce((prev, next) => {
           return prev + next.workers;
@@ -154,38 +166,59 @@ async function run() {
       }
     );
 
-    // get all tasks
-    app.get('/tasks', verifyToken, verifyAdmin, async (req, res) => {
-      const result = await taskCollection.find().toArray();
-      res.send(result);
+    // pending tasks for buyer
+    app.get('/pending-tasks/:email', verifyToken, verifyBuyer, async(req, res) => {
+      const { email } = req.params;
+      const query = {buyer_email: email, status: 'pending'};
+      const result = await submissionCollection.find(query).toArray();
+
+      for( const x of result) {
+        const task = await taskCollection.findOne({
+          _id: new ObjectId(x?.taskId),
+        });
+
+       if(task) {
+         x.task_title = task?.title; 
+         x.amount = task?.amount;
+       }
+      }
+      
+      res.send(result)
     })
 
-    // get custom task
-    app.get('/task/:id', verifyToken, verifyBuyer, async(req, res) => {
-      const { id } = req.params;
-      const { email } = req.query;
+    // get all tasks
+    app.get("/tasks", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await taskCollection.find().toArray();
+      res.send(result);
+    });
 
-      if(req.user?.email !== email) {
-        return res.status(403).send({message: 'Forbidden access'})
-      } 
+    app.get("/available-tasks", verifyToken, async (req, res) => {
+      const query = { workers: { $gt: 0 } };
+      const result = await taskCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    // get custom task
+    app.get("/task/:id", verifyToken, async (req, res) => {
+      const { id } = req.params;
 
       const query = { _id: new ObjectId(id) };
       const result = await taskCollection.findOne(query);
       res.send(result);
-    })
+    });
 
-    // update task 
-    app.put('/task/:id', verifyToken, verifyBuyer, async(req, res) => {
-      const {id} = req.params;
+    // update task
+    app.put("/task/:id", verifyToken, verifyBuyer, async (req, res) => {
+      const { id } = req.params;
       const query = { _id: new ObjectId(id) };
-      const { _id, ...data} = req.body;
+      const { _id, ...data } = req.body;
       const updateDoc = {
-        $set: data
-      }
+        $set: data,
+      };
 
       const result = await taskCollection.updateOne(query, updateDoc);
       res.send(result);
-    })
+    });
 
     // get role
     app.get("/user/role/:email", async (req, res) => {
@@ -261,13 +294,12 @@ async function run() {
       res.send(result);
     });
 
-    
     // create payment intent
-    app.post('/payment', verifyToken, async(req, res) => {
-      const {price} = req.body;
+    app.post("/payment", verifyToken, async (req, res) => {
+      const { price } = req.body;
       console.log(price);
       const totalPrice = price * 100;
-      
+
       const { client_secret } = await stripe.paymentIntents.create({
         amount: totalPrice,
         currency: "usd",
@@ -277,10 +309,10 @@ async function run() {
       });
 
       res.send({ clientSecret: client_secret });
-    })
+    });
 
-    // add payment to database 
-    app.post('/payments/:email', verifyToken, verifyBuyer, async(req, res) => {
+    // add payment to database
+    app.post("/payments/:email", verifyToken, verifyBuyer, async (req, res) => {
       const data = req.body;
       const { email } = req.params;
       const result = await paymentCollection.insertOne(data);
@@ -288,14 +320,25 @@ async function run() {
         { email },
         { $inc: { coin: data.coin } }
       );
-      res.send({result, addCoin});
-    })
+      res.send({ result, addCoin });
+    });
 
     // get payment data
-    app.get('/payments/:email', verifyToken, verifyBuyer, async(req, res) => {
+    app.get("/payments/:email", verifyToken, verifyBuyer, async (req, res) => {
       const { email } = req.params;
       const query = { email: email };
       const result = await paymentCollection.find(query).toArray();
+      res.send(result);
+    });
+
+
+    // submission post
+    app.post('/submit', verifyToken, async(req, res) => {
+      const data = req.body;
+      const result = await submissionCollection.insertOne({...data, status: 'pending'});
+      const reduceWorker = await taskCollection.updateOne({
+        _id: new ObjectId(data?.taskId),
+      }, {$inc: {workers: -1}});
       res.send(result);
     })
 
