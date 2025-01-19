@@ -114,12 +114,17 @@ async function run() {
     // post tasks api
     app.post("/tasks", verifyToken, verifyBuyer, async (req, res) => {
       const task = req.body;
+      const email = req?.user?.email;
+      const totalAmount = task.workers * task.amount;
       const result = await taskCollection.insertOne({
         ...task,
         status: "pending",
       });
+      await userCollection.updateOne({email}, {$inc: {'coin' : -totalAmount}})
       res.send(result);
     });
+
+    
 
     // task for a buyer
     app.get("/tasks/:email", verifyToken, verifyBuyer, async (req, res) => {
