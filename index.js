@@ -275,10 +275,15 @@ async function run() {
     })
 
     // add payment to database 
-    app.post('/payments', verifyToken, verifyBuyer, async(req, res) => {
+    app.post('/payments/:email', verifyToken, verifyBuyer, async(req, res) => {
       const data = req.body;
+      const { email } = req.params;
       const result = await paymentCollection.insertOne(data);
-      res.send(result);
+      const addCoin = await userCollection.updateOne(
+        { email },
+        { $inc: { coin: data.coin } }
+      );
+      res.send({result, addCoin});
     })
 
     // get payment data
