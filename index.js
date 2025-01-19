@@ -19,6 +19,7 @@ app.use(
 );
 app.use(express.json());
 app.use(cookieParser());
+const stripe = require("stripe")(process.env.PAYMENT_SECRETE_KEY);
 
 const verifyToken = (req, res, next) => {
   const token = req.cookies?.token;
@@ -53,6 +54,7 @@ async function run() {
     const db = client.db("PayPerTasksDB");
     const userCollection = db.collection("users");
     const taskCollection = db.collection("tasks");
+    const paymentCollection = db.collection('payments');
 
     // create token
     app.post("/jwt", async (req, res) => {
@@ -135,10 +137,9 @@ async function run() {
       async (req, res) => {
         const { email } = req.params;
         const query = { "buyer.email": email };
-        const tasks = await taskCollection.find(query).count();
+        const tasks = await taskCollection.countDocuments(query);
         const pending = await taskCollection
-          .find({ ...query, status: "pending" })
-          .count();
+          .countDocuments({ ...query, status: "pending" });
         const allTasks = await taskCollection.find().toArray();
         const workers = allTasks.reduce((prev, next) => {
           return prev + next.workers;
@@ -202,8 +203,8 @@ async function run() {
 
     // get admin home states
     app.get("/states", verifyToken, verifyAdmin, async (req, res) => {
-      const workers = await userCollection.find({ role: "worker" }).count();
-      const buyers = await userCollection.find({ role: "buyer" }).count();
+      const workers = await userCollection.countDocuments({ role: "worker" });
+      const buyers = await userCollection.countDocuments({ role: "buyer" });
       const users = await userCollection.find().toArray();
       const coins = users.reduce((prev, update) => {
         return prev + update.coin;
@@ -215,7 +216,6 @@ async function run() {
     app.post("/user/:email", async (req, res) => {
       const user = req.body;
       const email = req.params.email;
-      console.log(user);
 
       const isExist = await userCollection.findOne({ email });
 
@@ -255,6 +255,39 @@ async function run() {
       const result = await userCollection.updateOne(query, updateDoc);
       res.send(result);
     });
+
+    
+    // create payment intent
+    app.post('/payment', verifyToken, async(req, res) => {
+      const {price} = req.body;
+      console.log(price);
+      const totalPrice = price * 100;
+      
+      const { client_secret } = await stripe.paymentIntents.create({
+        amount: totalPrice,
+        currency: "usd",
+        automatic_payment_methods: {
+          enabled: true,
+        },
+      });
+
+      res.send({ clientSecret: client_secret });
+    })
+
+    // add payment to database 
+    app.post('/payments', verifyToken, verifyBuyer, async(req, res) => {
+      const data = req.body;
+      const result = await paymentCollection.insertOne(data);
+      res.send(result);
+    })
+
+    // get payment data
+    app.get('/payments/:email', verifyToken, verifyBuyer, async(req, res) => {
+      const { email } = req.params;
+      const query = { email: email };
+      const result = await paymentCollection.find(query).toArray();
+      res.send(result);
+    })
 
     await client.connect();
     await client.db("admin").command({ ping: 1 });
