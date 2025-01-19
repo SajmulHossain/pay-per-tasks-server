@@ -342,6 +342,23 @@ async function run() {
       res.send(result);
     })
 
+    // accept task
+    app.patch('/submit/:id', verifyToken, verifyBuyer, async(req, res) => {
+      const { id } = req.params;
+      const { amount, worker_email } = req.body;
+      const result = await userCollection.updateOne(
+        { email: worker_email },
+        { $inc: { coin: amount } }
+      );
+      const approve = await submissionCollection.updateOne({ _id: new ObjectId(id)}, {$set: {status: 'approve'}})
+      res.send(result);
+    })
+
+    // reject task
+    app.patch('/submit/reject/:id', verifyToken, verifyBuyer, async(req, res) => {
+      const { id } = req.params;
+    })
+
     await client.connect();
     await client.db("admin").command({ ping: 1 });
     console.log(
