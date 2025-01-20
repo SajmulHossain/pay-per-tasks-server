@@ -335,6 +335,12 @@ async function run() {
     // submission post
     app.post('/submit', verifyToken, async(req, res) => {
       const data = req.body;
+      const taskId = data.taskId;
+      const isExist = await submissionCollection.findOne({taskId});
+      console.log(isExist);
+      if(isExist) {
+        return res.send({inserted: true});
+      }
       const result = await submissionCollection.insertOne({...data, status: 'pending'});
       const reduceWorker = await taskCollection.updateOne({
         _id: new ObjectId(data?.taskId),
