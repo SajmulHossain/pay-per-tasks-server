@@ -142,9 +142,6 @@ async function run() {
       res.send(result);
     });
 
-
-   
-
     app.get(
       "/states/buyer/:email",
       verifyToken,
@@ -167,24 +164,32 @@ async function run() {
     );
 
     // pending tasks for buyer
-    app.get('/pending-tasks/:email', verifyToken, verifyBuyer, async(req, res) => {
-      const { email } = req.params;
-      const query = {buyer_email: email, status: 'pending'};
-      const result = await submissionCollection.find(query).toArray();
+    app.get(
+      "/pending-tasks/:email",
+      verifyToken,
+      verifyBuyer,
+      async (req, res) => {
+        const { email } = req.params;
+        const query = { buyer_email: email, status: "pending" };
+        const result = await submissionCollection.find(query).toArray();
 
-      for( const x of result) {
-        const task = await taskCollection.findOne({
-          _id: new ObjectId(x?.taskId),
-        });
+        for (const x of result) {
+          const task = await taskCollection.findOne({
+            _id: new ObjectId(x?.taskId),
+          });
 
-       if(task) {
-         x.task_title = task?.title; 
-         x.amount = task?.amount;
-       }
+          if (task) {
+            x.task_title = task?.title;
+            x.amount = task?.amount;
+            x.details = task?.details;
+            x.date = task?.date;
+            x.info = task?.info;
+          }
+        }
+
+        res.send(result);
       }
-      
-      res.send(result)
-    })
+    );
 
     // get all tasks
     app.get("/tasks", verifyToken, verifyAdmin, async (req, res) => {
@@ -331,48 +336,99 @@ async function run() {
       res.send(result);
     });
 
-
     // submission post
-    app.post('/submit', verifyToken, async(req, res) => {
+    app.post("/submit", verifyToken, async (req, res) => {
       const data = req.body;
       const taskId = data.taskId;
-      const isExist = await submissionCollection.findOne({taskId});
-      if(isExist) {
-        return res.send({inserted: true});
+      const isExist = await submissionCollection.findOne({ taskId });
+      if (isExist) {
+        return res.send({ inserted: true });
       }
-      const result = await submissionCollection.insertOne({...data, status: 'pending'});
-      const reduceWorker = await taskCollection.updateOne({
-        _id: new ObjectId(data?.taskId),
-      }, {$inc: {workers: -1}});
+      const result = await submissionCollection.insertOne({
+        ...data,
+        status: "pending",
+      });
+      const reduceWorker = await taskCollection.updateOne(
+        {
+          _id: new ObjectId(data?.taskId),
+        },
+        { $inc: { workers: -1 } }
+      );
       res.send(result);
-    })
+    });
 
     // accept task
-    app.patch('/submit/:id', verifyToken, verifyBuyer, async(req, res) => {
+    app.patch("/submit/:id", verifyToken, verifyBuyer, async (req, res) => {
       const { id } = req.params;
       const { amount, worker_email } = req.body;
       const result = await userCollection.updateOne(
         { email: worker_email },
         { $inc: { coin: amount } }
       );
-      const approve = await submissionCollection.updateOne({ _id: new ObjectId(id)}, {$set: {status: 'approve'}})
+      const approve = await submissionCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { status: "approve" } }
+      );
       res.send(result);
-    })
+    });
 
     // reject task
-    app.patch('/submit/reject/:id', verifyToken, verifyBuyer, async(req, res) => {
+    app.patch(
+      "/submit/reject/:id",
+      verifyToken,
+      verifyBuyer,
+      async (req, res) => {
+        const { id } = req.params;
+        const { taskId } = req.body;
+        const result = await submissionCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { status: "rejected" } }
+        );
+
+        if (!result.modifiedCount) {
+          return res.send({ modified: false });
+        }
+
+        const increaseWorker = await taskCollection.updateOne(
+          { _id: new ObjectId(taskId) },
+          { $inc: { workers: 1 } }
+        );
+
+        res.send(result);
+      }
+    );
+
+    // get custom submission
+    app.get("/submission/:id", async (req, res) => {
       const { id } = req.params;
-      const {taskId} = req.body;
-      const result = await submissionCollection.updateOne({ _id: new ObjectId(id)}, {$set: {status: 'rejected'}})
-
-      if(!result.modifiedCount) {
-        return res.send({modified: false})
-      } 
-
-      const increaseWorker = await taskCollection.updateOne({_id: new ObjectId(taskId)}, {$inc: {workers: 1}})
-
+      const query = { _id: new ObjectId(id) };
+      const result = await submissionCollection.findOne(query);
       res.send(result);
-    })
+    });
+
+    // get worker states
+    app.get("/states/worker/:email", verifyToken, async (req, res) => {
+      const { email } = req.params;
+      const totalSubmissions = await submissionCollection.countDocuments({
+        worker_email: email,
+      });
+      const pendingSubmissions = await submissionCollection.countDocuments({
+        worker_email: email,
+        status: "pending",
+      });
+      const approvedTasks = await submissionCollection
+        .find({
+          worker_email: email,
+          status: "approve",
+        })
+        .toArray();
+
+      const totalEarning = approvedTasks.reduce((pre, next) => {
+        return pre + next.amount;
+      }, 0);
+
+      res.send({totalSubmissions,pendingSubmissions,totalEarning})
+    });
 
     await client.connect();
     await client.db("admin").command({ ping: 1 });
