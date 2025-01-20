@@ -11,7 +11,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      " http://192.168.0.182:5173",
+      "https://pay-per-tasks.firebaseapp.com",
       "https://pay-per-tasks.web.app",
     ],
     credentials: true,
@@ -182,20 +182,6 @@ async function run() {
         const query = { buyer_email: email, status: "pending" };
         const result = await submissionCollection.find(query).toArray();
 
-        for (const x of result) {
-          const task = await taskCollection.findOne({
-            _id: new ObjectId(x?.taskId),
-          });
-
-          if (task) {
-            x.task_title = task?.title;
-            x.amount = task?.amount;
-            x.details = task?.details;
-            x.date = task?.date;
-            x.info = task?.info;
-          }
-        }
-
         res.send(result);
       }
     );
@@ -317,7 +303,6 @@ async function run() {
     // create payment intent
     app.post("/payment", verifyToken, async (req, res) => {
       const { price } = req.body;
-      console.log(price);
       const totalPrice = price * 100;
 
       const { client_secret } = await stripe.paymentIntents.create({
@@ -454,25 +439,6 @@ async function run() {
       };
 
       const result = await submissionCollection.find(query).toArray();
-
-      for (const list of result) {
-        const task = await taskCollection.findOne({
-          _id: new ObjectId(list?.taskId),
-        });
-
-        const buyer = await userCollection.findOne({
-          email: list?.buyer_email,
-        });
-
-        if (buyer) {
-          list.buyer_name = buyer?.name;
-        }
-
-        if (task) {
-          list.title = task?.title;
-        }
-      }
-
       res.send(result);
     });
 
@@ -480,16 +446,6 @@ async function run() {
       const { email } = req.params;
       const query = { worker_email: email };
       const result = await submissionCollection.find(query).toArray();
-
-      for (const x of result) {
-        const task = await taskCollection.findOne({
-          _id: new ObjectId(x?.taskId),
-        });
-
-        if (task) {
-          x.title = task?.title;
-        }
-      }
 
       res.send(result);
     });
