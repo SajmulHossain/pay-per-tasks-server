@@ -337,7 +337,6 @@ async function run() {
       const data = req.body;
       const taskId = data.taskId;
       const isExist = await submissionCollection.findOne({taskId});
-      console.log(isExist);
       if(isExist) {
         return res.send({inserted: true});
       }
@@ -363,6 +362,16 @@ async function run() {
     // reject task
     app.patch('/submit/reject/:id', verifyToken, verifyBuyer, async(req, res) => {
       const { id } = req.params;
+      const {taskId} = req.body;
+      const result = await submissionCollection.updateOne({ _id: new ObjectId(id)}, {$set: {status: 'rejected'}})
+
+      if(!result.modifiedCount) {
+        return res.send({modified: false})
+      } 
+
+      const increaseWorker = await taskCollection.updateOne({_id: new ObjectId(taskId)}, {$inc: {workers: 1}})
+
+      res.send(result);
     })
 
     await client.connect();
