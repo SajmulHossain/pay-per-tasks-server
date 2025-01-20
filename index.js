@@ -56,6 +56,7 @@ async function run() {
     const taskCollection = db.collection("tasks");
     const paymentCollection = db.collection("payments");
     const submissionCollection = db.collection("submission");
+    const withdrawCollection = db.collection("withdraw");
 
     // create token
     app.post("/jwt", async (req, res) => {
@@ -252,6 +253,10 @@ async function run() {
       const coins = users.reduce((prev, update) => {
         return prev + update.coin;
       }, 0);
+      const withdraws = await withdrawCollection.find().toArray();
+      const payments = withdraws.reduce((prev, next) => {
+        return prev + next.amount
+      }, 0)
       res.send({ workers, buyers, coins });
     });
 
@@ -427,8 +432,81 @@ async function run() {
         return pre + next.amount;
       }, 0);
 
-      res.send({totalSubmissions,pendingSubmissions,totalEarning})
+      res.send({ totalSubmissions, pendingSubmissions, totalEarning });
     });
+
+    // approvedSubmission
+    app.get("/approved-submissions/:email", verifyToken, async (req, res) => {
+      const { email } = req.params;
+      const query = {
+        worker_email: email,
+        status: "approve",
+      };
+
+      const result = await submissionCollection.find(query).toArray();
+
+      for (const list of result) {
+        const task = await taskCollection.findOne({
+          _id: new ObjectId(list?.taskId),
+        });
+
+        const buyer = await userCollection.findOne({
+          email: list?.buyer_email,
+        });
+
+        if (buyer) {
+          list.buyer_name = buyer?.name;
+        }
+
+        if (task) {
+          list.title = task?.title;
+        }
+      }
+
+      res.send(result);
+    });
+
+    app.get("/submissions/:email", verifyToken, async (req, res) => {
+      const { email } = req.params;
+      const query = { worker_email: email };
+      const result = await submissionCollection.find(query).toArray();
+
+      for (const x of result) {
+        const task = await taskCollection.findOne({
+          _id: new ObjectId(x?.taskId),
+        });
+
+        if (task) {
+          x.title = task?.title;
+        }
+      }
+
+      res.send(result);
+    });
+
+    app.post("/withdraws", verifyToken, async (req, res) => {
+      const body = req.body;
+      const result = await withdrawCollection.insertOne({
+        ...body,
+        status: "pending",
+      });
+      res.send(result);
+    });
+
+
+    // get all withdraw request
+    app.get('/withdraws', verifyToken, verifyAdmin, async(req, res) => {
+      const result = await withdrawCollection.find({status: 'pending'}).toArray();
+      res.send(result);
+    })
+
+    // accept withdraw request
+    app.patch('/withdraw/:id', verifyToken, verifyAdmin, async(req, res) => {
+      const { id } = req.params;
+      const query = { _id: new ObjectId(id) };
+      const result = await withdrawCollection.updateOne(query, {$set: {status: 'approved'}})
+      res.send(result);
+    })
 
     await client.connect();
     await client.db("admin").command({ ping: 1 });
