@@ -131,7 +131,15 @@ async function run() {
       const { id } = req.params;
       const query = { _id: new ObjectId(id) };
       const task = await taskCollection.findOne(query);
-      // const
+      const buyer_email = task?.buyer?.email;
+      const remainCoin = task?.workers * task?.amount;
+      const result = await userCollection.updateOne(
+        { email: buyer_email },
+        { $inc: { coin: remainCoin } }
+      );
+      
+      const deleteData = await taskCollection.deleteOne(query);
+      res.send({...deleteData, ...result});
     });
 
     // task for a buyer
@@ -253,10 +261,12 @@ async function run() {
       const coins = users.reduce((prev, update) => {
         return prev + update.coin;
       }, 0);
-      const withdraws = await withdrawCollection.find({status: 'approved'}).toArray();
+      const withdraws = await withdrawCollection
+        .find({ status: "approved" })
+        .toArray();
       const payments = withdraws.reduce((prev, next) => {
         return prev + next?.withdrawal_amount;
-      }, 0)
+      }, 0);
       res.send({ workers, buyers, coins, payments });
     });
 
@@ -493,34 +503,40 @@ async function run() {
       res.send(result);
     });
 
-
     // get all withdraw request
-    app.get('/withdraws', verifyToken, verifyAdmin, async(req, res) => {
-      const result = await withdrawCollection.find({status: 'pending'}).toArray();
+    app.get("/withdraws", verifyToken, verifyAdmin, async (req, res) => {
+      const result = await withdrawCollection
+        .find({ status: "pending" })
+        .toArray();
       res.send(result);
-    })
+    });
 
     // accept withdraw request
-    app.patch('/withdraw/:id', verifyToken, verifyAdmin, async(req, res) => {
+    app.patch("/withdraw/:id", verifyToken, verifyAdmin, async (req, res) => {
       const { id } = req.params;
       const query = { _id: new ObjectId(id) };
-      const withdrawData = await withdrawCollection.findOne({...query, status: 'approved'});
+      const withdrawData = await withdrawCollection.findOne({
+        ...query,
+        status: "approved",
+      });
       const { worker_email, withdrawal_coin } = req.body;
 
-      if(withdrawData) {
-        return res.send({modified: false});
+      if (withdrawData) {
+        return res.send({ modified: false });
       }
-      const result = await withdrawCollection.updateOne(query, {$set: {status: 'approved'}});
+      const result = await withdrawCollection.updateOne(query, {
+        $set: { status: "approved" },
+      });
 
-      if(result) {
+      if (result) {
         const user = await userCollection.updateOne(
           { email: worker_email },
           { $inc: { coin: -withdrawal_coin } }
         );
       }
-      
+
       res.send(result);
-    })
+    });
 
     await client.connect();
     await client.db("admin").command({ ping: 1 });
