@@ -253,11 +253,11 @@ async function run() {
       const coins = users.reduce((prev, update) => {
         return prev + update.coin;
       }, 0);
-      const withdraws = await withdrawCollection.find().toArray();
+      const withdraws = await withdrawCollection.find({status: 'approved'}).toArray();
       const payments = withdraws.reduce((prev, next) => {
-        return prev + next.amount
+        return prev + next?.withdrawal_amount;
       }, 0)
-      res.send({ workers, buyers, coins });
+      res.send({ workers, buyers, coins, payments });
     });
 
     // save user data to database
@@ -504,7 +504,21 @@ async function run() {
     app.patch('/withdraw/:id', verifyToken, verifyAdmin, async(req, res) => {
       const { id } = req.params;
       const query = { _id: new ObjectId(id) };
-      const result = await withdrawCollection.updateOne(query, {$set: {status: 'approved'}})
+      const withdrawData = await withdrawCollection.findOne({...query, status: 'approved'});
+      const { worker_email, withdrawal_coin } = req.body;
+
+      if(withdrawData) {
+        return res.send({modified: false});
+      }
+      const result = await withdrawCollection.updateOne(query, {$set: {status: 'approved'}});
+
+      if(result) {
+        const user = await userCollection.updateOne(
+          { email: worker_email },
+          { $inc: { coin: -withdrawal_coin } }
+        );
+      }
+      
       res.send(result);
     })
 
