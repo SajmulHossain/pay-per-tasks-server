@@ -174,7 +174,7 @@ async function run() {
           buyer_email: email,
           status: "pending",
         });
-        const allTasks = await taskCollection.find().toArray();
+        const allTasks = await taskCollection.find(query).toArray();
         const workers = allTasks.reduce((prev, next) => {
           return prev + next.workers;
         }, 0);
