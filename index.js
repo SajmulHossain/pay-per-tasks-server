@@ -168,7 +168,12 @@ async function run() {
           return prev + next.workers;
         }, 0);
 
-        res.send({ tasks, pending, workers });
+        const submissions = await submissionCollection.find({buyer_email: email, status: 'approve'}).toArray();
+        const payments = submissions.reduce((prev, next) => {
+          return prev + next.amount;
+        },0)
+
+        res.send({ tasks, pending, workers, payments });
       }
     );
 
