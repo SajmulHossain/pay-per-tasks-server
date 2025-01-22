@@ -118,7 +118,7 @@ async function run() {
       const task = req.body;
       const email = req?.user?.email;
       const totalAmount = task.workers * task.amount;
-      const result = await taskCollection.insertOne({ task });
+      const result = await taskCollection.insertOne(task);
       await userCollection.updateOne(
         { email },
         { $inc: { coin: -totalAmount } }
@@ -192,9 +192,10 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/available-tasks", verifyToken, async (req, res) => {
+    app.get("/available-tasks", async (req, res) => {
       const query = { workers: { $gt: 0 } };
-      const result = await taskCollection.find(query).toArray();
+      const {limit} = req.query;
+      const result = await taskCollection.find(query).limit(parseInt(limit)).toArray();
       res.send(result);
     });
 
@@ -493,6 +494,24 @@ async function run() {
 
       res.send(result);
     });
+
+    // best 6 workers
+    app.get('/best-workers', async(req, res) => {
+      const result = await userCollection.find({role: 'worker'}).sort({coin: -1}).limit(6).toArray();
+      res.send(result);
+    })
+
+    // home states
+    app.get('/states/home', async(req,res) => {
+      const workers = await userCollection.countDocuments({role: 'worker'});
+      const buyers = await userCollection.countDocuments({role: 'buyer'});
+      const tasks = await taskCollection.countDocuments();
+      const completedTasks = await taskCollection.countDocuments({workers: 0});
+
+      res.send({workers, buyers, tasks, completedTasks});
+    })
+
+    
 
     await client.connect();
     await client.db("admin").command({ ping: 1 });
