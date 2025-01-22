@@ -404,7 +404,7 @@ async function run() {
       );
 
       const notification = {
-        message: `You have earned <b>${amount}</b> coins from <b>${buyer_name}</b> for completing <b>${task_title}</b>`,
+        message: `You have earned ${amount} coins from ${buyer_name} for completing ${task_title}`,
         toEmail: worker_email,
         time: new Date(),
         actionRoute: "/dashboard/worker-home",
