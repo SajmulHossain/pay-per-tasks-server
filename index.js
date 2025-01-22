@@ -30,7 +30,7 @@ const verifyToken = (req, res, next) => {
 
   jwt.verify(token, process.env.SECRET_KEY, (err, decoded) => {
     if (err) {
-      return res.status(401).send({ message: "Unauthorized access" });
+      return res.status(400).send({ message: "Unauthorized access" });
     }
 
     req.user = decoded;
@@ -57,6 +57,7 @@ async function run() {
     const paymentCollection = db.collection("payments");
     const submissionCollection = db.collection("submission");
     const withdrawCollection = db.collection("withdraw");
+    const notificationCollection = db.collection("notifications")
 
     // create token
     app.post("/jwt", async (req, res) => {
@@ -381,7 +382,7 @@ async function run() {
     // accept task
     app.patch("/submit/:id", verifyToken, verifyBuyer, async (req, res) => {
       const { id } = req.params;
-      const { amount, worker_email } = req.body;
+      const { amount, worker_email,buyer_name,task_title } = req.body;
       const result = await userCollection.updateOne(
         { email: worker_email },
         { $inc: { coin: amount } }
@@ -390,6 +391,16 @@ async function run() {
         { _id: new ObjectId(id) },
         { $set: { status: "approve" } }
       );
+
+
+      const notification = {
+        message: `You have earned <b>${amount}</b> coins from <b>${buyer_name}</b> for completing <b>${task_title}</b>`,
+        toEmail: worker_email,
+        time: new Date()
+      };
+
+      const addNotification = await notificationCollection.insertOne(notification);
+
       res.send(result);
     });
 
@@ -530,6 +541,8 @@ async function run() {
 
       res.send({workers, buyers, tasks, completedTasks});
     })
+
+    
 
     
 
