@@ -130,8 +130,19 @@ async function run() {
     app.delete("/task/:id", verifyToken, async (req, res) => {
       const { id } = req.params;
       const query = { _id: new ObjectId(id) };
+      
+      const submission = await submissionCollection.find({taskId: id, status: 'pending'}).toArray();
+
+      if(submission.length) {
+        const increaseWorker = await taskCollection.updateOne(query, {$inc: {workers: submission?.length}});
+        const deleteAllPendingSubmission = await submissionCollection.deleteMany({taskId: id, status: 'pending'});
+      }
+
       const task = await taskCollection.findOne(query);
       const buyer_email = task?.buyer?.email;
+
+
+
       const remainCoin = task?.workers * task?.amount;
       const result = await userCollection.updateOne(
         { email: buyer_email },
