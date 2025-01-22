@@ -357,7 +357,11 @@ async function run() {
     app.post("/submit", verifyToken, async (req, res) => {
       const data = req.body;
       const taskId = data.taskId;
-      const isExist = await submissionCollection.findOne({ taskId });
+      const worker_email = data.worker_email;
+      const isExist = await submissionCollection.findOne({
+        taskId,
+        worker_email,
+      });
       if (isExist) {
         return res.send({ inserted: true });
       }
