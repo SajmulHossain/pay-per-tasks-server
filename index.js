@@ -424,7 +424,7 @@ async function run() {
       verifyBuyer,
       async (req, res) => {
         const { id } = req.params;
-        const { taskId } = req.body;
+        const { taskId, worker_email, buyer_name, task_title } = req.body;
         const result = await submissionCollection.updateOne(
           { _id: new ObjectId(id) },
           { $set: { status: "rejected" } }
@@ -438,6 +438,15 @@ async function run() {
           { _id: new ObjectId(taskId) },
           { $inc: { workers: 1 } }
         );
+
+        const notification = {
+          message: `Your submission has been rejected by ${buyer_name} for task ${task_title}`,
+          toEmail: worker_email,
+          time: new Date(),
+          actionRoute: "/dashboard/worker-home",
+        };
+
+        const insertNotification = await notificationCollection.insertOne(notification);
 
         res.send(result);
       }
@@ -564,7 +573,10 @@ async function run() {
     // get notifications
     app.get("/notifications/:email", verifyToken, async (req, res) => {
       const { email } = req.params;
-      const result = await notificationCollection.find({toEmail: email}).sort({time: -1}).toArray();
+      const result = await notificationCollection
+        .find({ toEmail: email })
+        .sort({ time: -1 })
+        .toArray();
       res.send(result);
     });
 
