@@ -223,7 +223,8 @@ async function run() {
       const result = await taskCollection
         .find(query)
         .limit(parseInt(limit))
-        .toArray();
+        .sort({date: 1})
+        .toArray()
       res.send(result);
     });
 
@@ -368,6 +369,7 @@ async function run() {
     // submission post
     app.post("/submit", verifyToken, async (req, res) => {
       const data = req.body;
+      const { buyer_email, worker_name, task_title } = data;
       const taskId = data.taskId;
       const worker_email = data.worker_email;
       const isExist = await submissionCollection.findOne({
@@ -387,6 +389,16 @@ async function run() {
         },
         { $inc: { workers: -1 } }
       );
+
+     const notification = {
+       message: `${worker_name} have placed a submission for ${task_title}`,
+       toEmail: buyer_email,
+       time: new Date(),
+       actionRoute: "/dashboard/buyer-home",
+     };
+
+      const notificationSubmit = await notificationCollection.insertOne(notification);
+
       res.send(result);
     });
 
@@ -440,7 +452,7 @@ async function run() {
         );
 
         const notification = {
-          message: `Your submission has been rejected by ${buyer_name} for task ${task_title}`,
+          message: `Your submission has been rejected by ${buyer_name} for the task ${task_title}`,
           toEmail: worker_email,
           time: new Date(),
           actionRoute: "/dashboard/worker-home",
@@ -498,14 +510,24 @@ async function run() {
 
     app.get("/submissions/:email", verifyToken, async (req, res) => {
       const { email } = req.params;
+      let {page} = req.query;
+      page = parseInt(page);
       const query = { worker_email: email };
-      const result = await submissionCollection.find(query).toArray();
+      const result = await submissionCollection.find(query).skip(page*6).limit(6).toArray();
 
       res.send(result);
     });
 
-    app.post("/withdraws", verifyToken, async (req, res) => {
+    app.post("/withdraws/:email", verifyToken, async (req, res) => {
       const body = req.body;
+      const { email } = req.params;
+
+      const isExist = await withdrawCollection.findOne({ worker_email: email, status: 'pending'});
+
+      if(isExist) {
+        return res.send({exist: true})
+      }
+
       const result = await withdrawCollection.insertOne({
         ...body,
         status: "pending",
@@ -545,6 +567,15 @@ async function run() {
         );
       }
 
+      const notification = {
+        message: `Your withdraw request for ${withdrawal_coin} has been accepted`,
+        toEmail: worker_email,
+        actionRoute: '/dashboard/worker-home',
+        time: new Date() 
+      }
+
+      const uploadNotification = await notificationCollection.insertOne(notification)
+
       res.send(result);
     });
 
@@ -579,6 +610,14 @@ async function run() {
         .toArray();
       res.send(result);
     });
+
+    // get submission count
+    app.get('/submissions/count/:email', verifyToken, async(req, res) => {
+      const { email } = req.params;
+      const query = { worker_email: email };
+      const result = await submissionCollection.countDocuments(query);
+      res.send({pages: result});
+    })
 
     await client.connect();
     await client.db("admin").command({ ping: 1 });
