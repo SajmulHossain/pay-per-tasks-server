@@ -219,11 +219,28 @@ async function run() {
 
     app.get("/available-tasks", async (req, res) => {
       const query = { workers: { $gt: 0 } };
-      const { limit } = req.query;
+      const { limit, amountQuery, workerQuery } = req.query;
+
+      let sort = {};
+
+      if(amountQuery && amountQuery === 'ascAmount') {
+        sort.amount = 1
+      } else if (amountQuery && amountQuery === 'dscAmount') {
+        sort.amount = -1;
+      }
+
+      if (workerQuery && workerQuery === "ascWorker") {
+        sort.workers = 1;
+      } else if (workerQuery && workerQuery === "dscWorker") {
+        sort.workers = -1;
+      }
+
+      console.log(sort);
+
       const result = await taskCollection
         .find(query)
         .limit(parseInt(limit))
-        .sort({date: 1})
+        .sort(sort)
         .toArray()
       res.send(result);
     });
